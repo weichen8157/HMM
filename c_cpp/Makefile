@@ -1,12 +1,18 @@
 .PHONY: all clean
-
-CFLAGS+=
+CC=gcc
+CFLAGS+=-w
 LDFLAGS+=-lm     # link to math library
 
-TARGET=test_hmm
+TRAIN_TARGET=train
+TEST_TARGET=test
 
-all: $(TARGET)
-# type make/make all to compile test_hmm
+all: train test
+
+train: train.c
+	$(CC) $(LDFLAGS) $(CFLAGS) $< -o $@
+
+test: test.c    
+	$(CC) $(LDFLAGS) $(CFLAGS) $< -o $@
 
 clean:
-	$(RM) $(TARGET)   # type make clean to remove the compiled file
+	$(RM) $(TEST_TARGET) $(TRAIN_TARGET)   # type make clean to remove the compiled file

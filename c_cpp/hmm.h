@@ -84,8 +84,6 @@ static void load_seq_model(char seq[10000][51],int num_seq[10000][50] ,const cha
                 
         }    
    }
-
-
 }
 
 static void loadHMM( HMM *hmm, const char *filename )
@@ -148,7 +146,32 @@ static void dumpHMM( FILE *fp, HMM *hmm )
       fprintf(fp,"%.5lf\n", hmm->observation[i][hmm->state_num - 1]);
    }
 }
+static void output_model( HMM *hmm, const char *filename)
+{
+    int i,j;
+    FILE *fp = open_or_die( filename, "w");
 
+    fprintf( fp, "initial: %d\n", hmm->state_num );
+    for( i = 0 ; i < hmm->state_num - 1; i++ )
+      fprintf( fp, "%e ", hmm->initial[i]);
+    fprintf(fp, "%e\n", hmm->initial[ hmm->state_num - 1 ] );
+
+    fprintf( fp, "\ntransition: %d\n", hmm->state_num );
+    for( i = 0 ; i < hmm->state_num ; i++ ){
+      for( j = 0 ; j < hmm->state_num - 1 ; j++ )
+         fprintf( fp, "%e ", hmm->transition[i][j] );
+      fprintf(fp,"%e\n", hmm->transition[i][hmm->state_num - 1]);
+   }
+
+   fprintf( fp, "\nobservation: %d\n", hmm->observ_num );
+   for( i = 0 ; i < hmm->observ_num  ; i++ ){
+      for( j = 0 ; j < hmm->observ_num  - 1 ; j++ )
+         fprintf( fp, "%e", hmm->observation[i][j] );
+      fprintf(fp,"%e\n", hmm->observation[i][hmm->state_num - 1]);
+   }
+
+   fclose(fp);  
+}
 static int load_models( const char *listname, HMM *hmm, const int max_num )
 {
    FILE *fp = open_or_die( listname, "r" );
@@ -179,7 +202,7 @@ static void dump_models( HMM *hmm, const int num )
 static void cal_forward(HMM *hmm,int *seq)
 {
     int i,j,k;
-    for(i=0 ; i<hmm->observ_num;i++)
+    for(i=0 ; i<T;i++)
     {
        for(j=0;j<hmm->state_num;j++)
        {
@@ -201,11 +224,11 @@ static void cal_forward(HMM *hmm,int *seq)
 static void cal_backward(HMM *hmm,int *seq)
 {
     int i,j,k;
-    for(i=hmm->observ_num-1;i>=0;i--)
+    for(i=T-1;i>=0;i--)
     {
         for(j=0;j<hmm->state_num;j++)
         {
-            if(i==hmm->observ_num-1)
+            if(i==T-1)
                 beta[i][j]=1;
             else
             {
@@ -221,7 +244,7 @@ static void cal_backward(HMM *hmm,int *seq)
 static void cal_gama(HMM *hmm)
 {
     int i,j;
-    for(i=0;i<hmm->observ_num;i++)
+    for(i=0;i<T;i++)
     {
         double tmp =0;
         for(j=0;j<hmm->state_num;j++)
@@ -237,7 +260,7 @@ static void cal_gama(HMM *hmm)
 static void cal_xi(HMM *hmm,int *seq)
 {
     int i,j,k;
-    for(i=0;i<hmm->observ_num-1;i++) 
+    for(i=0;i<T-1;i++) 
     {
         double tmp =0;
         for (j=0; j<hmm->state_num;j++)
@@ -272,12 +295,12 @@ static void update_transition(HMM *hmm)
     for(i=0;i<hmm->state_num;i++)
     {
         double tmp1;
-        for(j=0;j<hmm->observ_num-1;j++)
+        for(j=0;j<T-1;j++)
             tmp1 += gama[j][i];
         for(k=0;k<hmm->state_num;k++)
         {
             double tmp2;
-            for(j=0;j<hmm->observ_num-1;j++)
+            for(j=0;j<T-1;j++)
                 tmp2 += xi[j][i][k];
             hmm->transition[i][k]= tmp2/tmp1;
         }   
@@ -289,12 +312,12 @@ static void update_observation(HMM *hmm,int *seq)
     for(i=0;i<hmm->state_num;i++)
     {
         double tmp1[6]={0},tmp2=0;
-        for(j=0;j<hmm->observ_num;j++)
+        for(j=0;j<T;j++)
         {
             tmp1[seq[j]] += gama[j][i];
             tmp2 += gama[j][i];
         }
-        for(k=0;k<hmm->observ_num;k++)
+        for(k=0;k<T;k++)
             hmm->observation[i][k] = tmp1[k]/tmp2;
     }
 }
