@@ -26,6 +26,8 @@ const int N=6 , T=50;
 char seq_model[10000][51];
 int num_seq_model[10000][50];
 double alfa[50][6],beta[50][6],gama[50][6],xi[50][6][6];
+double sum_gama_1[6],sum_gama_2[6],sum_gama_3[6],sum_gama_o[6][6],sum_xi[6][6];
+
 
 typedef struct{
    char *model_name;
@@ -53,6 +55,44 @@ static void load_seq_model(char seq[10000][51],int num_seq[10000][50] ,const cha
     FILE *fp;
     fp = fopen(filename, "r");
     for(i=0;i<10000;i++)
+    {
+       for(j=0;j<51;j++)
+       {
+        
+            fscanf(fp,"%c",&seq[i][j]);
+            switch(seq[i][j])
+            {
+                case 'A':
+                    num_seq[i][j]=0;
+                    break;
+                case 'B':
+                    num_seq[i][j]=1;
+                    break;
+                case 'C':
+                    num_seq[i][j]=2;
+                    break;
+                case 'D':
+                    num_seq[i][j]=3;
+                    break;
+                case 'E':
+                    num_seq[i][j]=4;
+                    break;    
+                case 'F':
+                    num_seq[i][j]=5;
+                    break;
+                default:
+                    break;
+            } 
+                
+        }    
+   }
+}
+static void load_test_data(char seq[2500][51],int num_seq[2500][50] ,const char *filename)
+{
+    int i=0, j=0;
+    FILE *fp;
+    fp = fopen(filename, "r");
+    for(i=0;i<2500;i++)
     {
        for(j=0;j<51;j++)
        {
@@ -199,7 +239,7 @@ static void dump_models( HMM *hmm, const int num )
       dumpHMM( stderr, &hmm[i] );
    }
 }
-static void cal_forward(HMM *hmm,int *seq)
+double cal_forward(HMM *hmm,int *seq)
 {
     int i,j,k;
     for(i=0 ; i<T;i++)
@@ -208,20 +248,21 @@ static void cal_forward(HMM *hmm,int *seq)
        {
            
             if(i==0)
-                alfa[i][j]=hmm->initial[j] * hmm->observation[j][seq[i]];
+                alfa[i][j]=hmm->initial[j] * hmm->observation[seq[i]][j];
             else
             {
                double tmp = 0;
                for(k=0 ; k<hmm->state_num;k++)
                    tmp += alfa[i-1][k] * hmm->transition[k][j];
-                alfa[i][j]= tmp * hmm->observation[j][seq[i]];
+                alfa[i][j]= tmp * hmm->observation[seq[i]][j];
             }
             
        }
     }
-}
 
-static void cal_backward(HMM *hmm,int *seq)
+    }
+
+static double cal_backward(HMM *hmm,int *seq)
 {
     int i,j,k;
     for(i=T-1;i>=0;i--)
@@ -234,7 +275,7 @@ static void cal_backward(HMM *hmm,int *seq)
             {
                 double tmp = 0;
                 for(k=0;k<hmm->state_num;k++)
-                    tmp += hmm->transition[j][k] * hmm->observation[k][seq[i+1]] * beta[i+1][k];
+                    tmp += hmm->transition[j][k] * hmm->observation[seq[i+1]][k] * beta[i+1][k];
                 beta[i][j] = tmp ;
             }
         }
@@ -243,82 +284,110 @@ static void cal_backward(HMM *hmm,int *seq)
 
 static void cal_gama(HMM *hmm)
 {
+	
     int i,j;
+    double tmp = 0;
+
+    for(i=0;i<hmm->state_num;i++)
+	tmp+=alfa[T-1][i];
+
     for(i=0;i<T;i++)
     {
-        double tmp =0;
         for(j=0;j<hmm->state_num;j++)
-            tmp+=alfa[i][j]*beta[i][j];
-        
-        for(j=0;j<hmm->state_num;j++)
-            gama[i][j] = alfa[i][j] * beta[i][j] / tmp;
-
-        
+	    gama[i][j]=alfa[i][j]*beta[i][j]/tmp;      
     }
 }
 
 static void cal_xi(HMM *hmm,int *seq)
 {
     int i,j,k;
+    double tmp = 0;
+
+    for(i=0;i<hmm->state_num;i++)
+	tmp+=alfa[T-1][i];
+
     for(i=0;i<T-1;i++) 
     {
-        double tmp =0;
         for (j=0; j<hmm->state_num;j++)
         {
             for (k=0; k<hmm->state_num;k++)
             {
-                tmp += alfa[i][j] * hmm->transition[j][k]* hmm->observation[k][seq[i+1]]*beta[i+1][k];
-                 
+         	xi[i][j][k]=alfa[i][j]*hmm->transition[j][k]*hmm->observation[k][seq[i+1]]*beta[i+1][k]/tmp;    
             }
         }
 
-        for (j=0; j<hmm->state_num; j++)
-        {
-            for (k=0; k<hmm->state_num; k++)
-            {
-                xi[i][j][k]=alfa[i][j]*hmm->transition[j][k]* hmm->observation[k][seq[i+1]]*beta[i+1][k] / tmp;     
-            }
-        }
     }
+}
+
+static void sum_of_gama_1()
+{
+    int i;
+    for(i=0;i<N;i++)
+	sum_gama_1[i]+=gama[0][i];
+}
+
+static void sum_of_gama_2()
+{
+    int i,j;
+    for(i=0;i<T-1;i++)
+    {
+	for(j=0;j<N;j++)
+	{
+	    sum_gama_2[j]+=gama[i][j];
+	
+	}
+    }
+}
+
+static void sum_of_gama_3(int *seq)
+{
+    int i,j;
+    for(i=0;i<T;i++)
+    {
+	for(j=0;j<N;j++)
+	{
+	    sum_gama_3[j]+=gama[i][j];
+	    sum_gama_o[seq[i]][j]+=gama[i][j];	
+	}
+    }
+}
+
+static void sum_of_xi()
+{
+	int i,j,k;
+	for(i=0;i<T;i++)
+	    for(j=0;j<N;j++)
+                for(k=0;k<N;k++)
+		    sum_xi[j][k]+=xi[i][j][k];
 }
 
 static void update_initial(HMM *hmm)
 {
     int i;
-    for(i=0;i<hmm->state_num;i++)
-        hmm->initial[i] = gama[0][i];
+    for(i=0;i<N;i++)
+        hmm->initial[i] = sum_gama_1[i]/10000;
 }
 
 static void update_transition(HMM *hmm)
 {
-    int i,j,k;
-    for(i=0;i<hmm->state_num;i++)
+    int i,j;
+    for(i=0;i<N;i++)
     {
-        double tmp1;
-        for(j=0;j<T-1;j++)
-            tmp1 += gama[j][i];
-        for(k=0;k<hmm->state_num;k++)
-        {
-            double tmp2;
-            for(j=0;j<T-1;j++)
-                tmp2 += xi[j][i][k];
-            hmm->transition[i][k]= tmp2/tmp1;
-        }   
+        for(j=0;j<N;j++)
+	{
+	    hmm->transition[i][j]=sum_xi[i][j]/sum_gama_2[i];
+	}   
     }
 }
-static void update_observation(HMM *hmm,int *seq)
+static void update_observation(HMM *hmm)
 {
     int i,j,k;
-    for(i=0;i<hmm->state_num;i++)
+    for(i=0;i<N;i++)
     {
-        double tmp1[6]={0},tmp2=0;
-        for(j=0;j<T;j++)
-        {
-            tmp1[seq[j]] += gama[j][i];
-            tmp2 += gama[j][i];
-        }
-        for(k=0;k<T;k++)
-            hmm->observation[i][k] = tmp1[k]/tmp2;
+        for(j=0;j<N;j++) 
+	{
+	    hmm->observation[j][i]=sum_gama_o[j][i]/sum_gama_3[i];
+	}
     }
 }
 #endif

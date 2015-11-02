@@ -8,10 +8,10 @@ TEST_TARGET=test
 
 all: train test
 
-train: train.c
+train: train.c hmm.h
 	$(CC) $(LDFLAGS) $(CFLAGS) $< -o $@
 
-test: test.c    
+test: test.c hmm.h
 	$(CC) $(LDFLAGS) $(CFLAGS) $< -o $@
 
 clean:
