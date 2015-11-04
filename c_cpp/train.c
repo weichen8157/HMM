@@ -74,7 +74,7 @@ int main(int argc, char *argv[])
         }
 */
     }
-    dumpHMM( stderr, &hmm_initial );
+    //dumpHMM( stderr, &hmm_initial );
     output_model(&hmm_initial,argv[4]);
 	//printf("%f\n", log(1.5) ); // make sure the math library is included
 	return 0;

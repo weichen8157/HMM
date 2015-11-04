@@ -1,6 +1,5 @@
 #ifndef HMM_HEADER_
 #define HMM_HEADER_
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -27,6 +26,7 @@ char seq_model[10000][51];
 int num_seq_model[10000][50];
 double alfa[50][6],beta[50][6],gama[50][6],xi[50][6][6];
 double sum_gama_1[6],sum_gama_2[6],sum_gama_3[6],sum_gama_o[6][6],sum_xi[6][6];
+double delta[50][6];
 
 
 typedef struct{
@@ -38,6 +38,34 @@ typedef struct{
    double observation[MAX_OBSERV][MAX_STATE];	//observation prob.
 } HMM;
 
+void itoa(int n,char *s){
+    int flag = 1;
+    if (n<0)
+    {
+        n = -n;
+	flag = 0;
+    }
+    int i = 0;
+    while(n != 0)
+    {
+        s[i++] = n%10+'0';
+	n = n/10;
+    }
+    if(!flag)
+        s[i++] = '-';
+    s[i] = '\0';
+    reverse(s);
+}
+
+void reverse(char *s){
+    int i,j ;
+    for(i = 0,j = strlen(s)-1;i<j;i++,j--)
+    {
+        int c = s[i];
+        s[i] = s[j];
+        s[j] = c;
+    }
+}
 static FILE *open_or_die( const char *filename, const char *ht )
 {
    FILE *fp = fopen( filename, ht );
@@ -125,6 +153,20 @@ static void load_test_data(char seq[2500][51],int num_seq[2500][50] ,const char 
         }    
    }
 }
+static void load_test_answer(char seq[2500][13],const char *filename)
+{
+    int i=0, j=0;
+    FILE *fp;
+    fp = fopen(filename, "r");
+    for(i=0;i<2500;i++)
+    {
+       for(j=0;j<13;j++)
+       {
+
+            fscanf(fp,"%c",&seq[i][j]);
+       }    
+   }
+}
 
 static void loadHMM( HMM *hmm, const char *filename )
 {
@@ -193,21 +235,21 @@ static void output_model( HMM *hmm, const char *filename)
 
     fprintf( fp, "initial: %d\n", hmm->state_num );
     for( i = 0 ; i < hmm->state_num - 1; i++ )
-      fprintf( fp, "%e ", hmm->initial[i]);
-    fprintf(fp, "%e\n", hmm->initial[ hmm->state_num - 1 ] );
+      fprintf( fp, "%.5lf ", hmm->initial[i]);
+    fprintf(fp, "%.5lf\n", hmm->initial[ hmm->state_num - 1 ] );
 
     fprintf( fp, "\ntransition: %d\n", hmm->state_num );
     for( i = 0 ; i < hmm->state_num ; i++ ){
       for( j = 0 ; j < hmm->state_num - 1 ; j++ )
-         fprintf( fp, "%e ", hmm->transition[i][j] );
-      fprintf(fp,"%e\n", hmm->transition[i][hmm->state_num - 1]);
+         fprintf( fp, "%.5lf ", hmm->transition[i][j] );
+      fprintf(fp,"%.5lf\n", hmm->transition[i][hmm->state_num - 1]);
    }
 
    fprintf( fp, "\nobservation: %d\n", hmm->observ_num );
    for( i = 0 ; i < hmm->observ_num  ; i++ ){
       for( j = 0 ; j < hmm->observ_num  - 1 ; j++ )
-         fprintf( fp, "%e", hmm->observation[i][j] );
-      fprintf(fp,"%e\n", hmm->observation[i][hmm->state_num - 1]);
+         fprintf( fp, "%.5lf ", hmm->observation[i][j] );
+      fprintf(fp,"%.5lf\n", hmm->observation[i][hmm->state_num - 1]);
    }
 
    fclose(fp);  
@@ -308,11 +350,11 @@ static void cal_xi(HMM *hmm,int *seq)
 
     for(i=0;i<T-1;i++) 
     {
-        for (j=0; j<hmm->state_num;j++)
+        for (j=0; j<N;j++)
         {
-            for (k=0; k<hmm->state_num;k++)
+            for (k=0; k<N;k++)
             {
-         	xi[i][j][k]=alfa[i][j]*hmm->transition[j][k]*hmm->observation[k][seq[i+1]]*beta[i+1][k]/tmp;    
+         	xi[i][j][k]=alfa[i][j]*hmm->transition[j][k]*hmm->observation[seq[i+1]][k]*beta[i+1][k]/tmp;    
             }
         }
 
@@ -355,7 +397,7 @@ static void sum_of_gama_3(int *seq)
 static void sum_of_xi()
 {
 	int i,j,k;
-	for(i=0;i<T;i++)
+	for(i=0;i<T-1;i++)
 	    for(j=0;j<N;j++)
                 for(k=0;k<N;k++)
 		    sum_xi[j][k]+=xi[i][j][k];
@@ -389,5 +431,45 @@ static void update_observation(HMM *hmm)
 	    hmm->observation[j][i]=sum_gama_o[j][i]/sum_gama_3[i];
 	}
     }
+}
+double verterbi(HMM *hmms,int *seq)
+{
+    int i,j,k;
+    double p=0,max=0,tmp;
+
+    for(i=0;i<N;i++)
+    {
+	delta[0][i] = hmms->initial[i]* hmms->observation[seq[0]][i];
+    }
+
+    for(i=1;i<T;i++)
+    {
+	for(j=0;j<N;j++)
+	{
+	    /*
+	    if(i==0)
+	        delta[i][j]=hmms->initial[j]*hmms->observation[seq[i]][j];
+	    */
+	    //else
+            //{
+		max=-1000;
+		for(k=0;k<N;k++)
+		{
+		    tmp=delta[i-1][k]*hmms->transition[k][j];
+		    if(tmp>max)
+			max=tmp;
+		}
+		 delta[i][j]=max*hmms->observation[seq[i]][j];
+            //}
+	}
+    }
+    for(i=0;i<N;i++)
+    {
+	if(delta[T-1][i]>p)
+	    p=delta[T-1][i];
+    }
+
+    return p;
+
 }
 #endif
